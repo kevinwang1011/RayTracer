@@ -1,0 +1,38 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel Accumulation
+#include "UnityCG.cginc"
+
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+Texture2D<float4> _PrevFrame;
+Texture2D<float4> _NextFrame;
+RWTexture2D<float4> _Result;
+int _Frame;
+
+uint NextRandom(inout uint state)
+{
+    state = state * 747796405 + 2891336453;
+    uint result = ((state >> ((state >> 28) + 4)) ^ state) * 277803737;
+    result = (result >> 22) ^ result;
+    return result;
+}
+
+float rand(inout uint state)
+{
+    return NextRandom(state) / 4294967295.0; // 2^32 - 1
+}
+
+[numthreads(8,8,1)]
+void Accumulation (uint3 id : SV_DispatchThreadID)
+{
+    float4 col = _NextFrame[id.xy];
+    float4 colPrev = _PrevFrame[id.xy];
+
+    float weight = 1.0 / (_Frame + 1);
+    // Combine prev frame with current frame. Weight the contributions to result in an average over all frames.
+    float4 accumulatedCol = saturate(colPrev * (1 - weight) + col * weight);
+
+    _Result[id.xy] = float4(accumulatedCol.xyz,1);
+    // _Result[id.xy] = float4(10 - _Frame/10.0, 0, 0, 1);
+}
